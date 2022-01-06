@@ -20,7 +20,6 @@ module Promise: sig
   ]
 end
 
-
 module Storage : sig
   type t = private Ojs.t
   val t_of_js: Ojs.t -> t
@@ -688,15 +687,19 @@ module XHR: sig
   val t_of_js: Ojs.t -> t
   val t_to_js: t -> Ojs.t
 
-
   val create: unit -> t [@@js.new "XMLHttpRequest"]
   val open_: t -> string -> string -> unit
   val send: t -> Ojs.t -> unit
+  val send_empty: t -> unit -> unit [@@js.call "send"]
+  val send_string: t -> string -> unit [@@js.call "send"]
   val set_request_header: t -> string -> string -> unit
+  val get_all_response_headers: t -> unit -> string option
   val get_response_header: t -> string -> string option
   val set_response_type: t -> string -> unit
   val override_mime_type: t -> string -> unit
   val set_with_credentials: t -> bool -> unit (* starting from IE10 *)
+
+  val set_timeout: t -> int -> unit [@@js.set]
 
   type ready_state =
     | Unsent [@js 0]
@@ -708,11 +711,15 @@ module XHR: sig
   [@@js.enum]
 
   val status: t -> int
+  val status_text: t -> string
+  val response_url: t -> string [@@js.get "responseURL"]
   val ready_state: t -> ready_state
+  val response_type: t -> string
   val response_text: t -> string
-  val response: t -> Ojs.t
+  val response: t -> Ojs.t option
 
   val set_onreadystatechange: t -> (unit -> unit) -> unit
+  val add_event_listener: t -> Event.kind -> (Event.t -> unit) -> bool -> unit
 end
 
 module WebSocket : sig
