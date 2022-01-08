@@ -462,7 +462,9 @@ module Element : sig
   val has_attribute: t -> string -> bool
   val get_attribute: t -> string -> string
   val remove_attribute: t -> string -> unit
+  val remove_attribute_ns: t -> string option -> string -> unit
   val set_attribute: t -> string -> string -> unit
+  val set_attribute_ns: t -> string option -> string -> string -> unit
   val get_bounding_client_rect: t -> Rect.t [@@js.call]
   val get_bounding_box: t (* svg *) -> SVGRect.t [@@js.call "getBBox"]
 

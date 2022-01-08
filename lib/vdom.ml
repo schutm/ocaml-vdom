@@ -51,7 +51,7 @@ type 'msg attribute =
   | Property of string * prop_val
   | Style of string * string
   | Handler of 'msg event_handler
-  | Attribute of string * string
+  | Attribute of string option * string * string
 
 let onmousedown msg = Handler (MouseDown msg)
 let onclick msg = Handler (Click msg)
@@ -74,9 +74,10 @@ let int_prop k v = Property (k, Int v)
 let bool_prop k v = Property (k, Bool v)
 let float_prop k v = Property (k, Float v)
 let style k v = Style (k, v)
-let attr k v = Attribute (k, v)
-let int_attr k v = Attribute (k, string_of_int v)
-let float_attr k v = Attribute (k, string_of_float v)
+let attr ?ns k v = Attribute (ns, k, v)
+let int_attr ?ns k v = Attribute (ns, k, string_of_int v)
+let float_attr ?ns k v = Attribute (ns, k, string_of_float v)
+
 let scroll_to_show = bool_prop "scroll-to-show" true
 let autofocus = bool_prop "autofocus" true
 let autofocus_counter x = int_prop "autofocus" x

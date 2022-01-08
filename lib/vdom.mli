@@ -87,9 +87,9 @@ type 'msg attribute =
   | Property of string * prop_val
   | Style of string * string
   | Handler of 'msg event_handler
-  | Attribute of string * string (* use a prop_val to avoid
-                                    casting number to strings
-                                    when producing the vdom? *)
+  | Attribute of string option * string * string (* use a prop_val to avoid
+                                                    casting number to strings
+                                                    when producing the vdom? *)
 
 
 (** {3 Event handlers} *)
@@ -131,9 +131,9 @@ val float_prop: string -> float -> 'msg attribute
 val style: string -> string -> 'msg attribute
 (** A sub-field of the "style" DOM property. *)
 
-val attr: string -> string -> 'mg attribute
-val int_attr: string -> int -> 'msg attribute
-val float_attr: string -> float -> 'msg attribute
+val attr: ?ns:string -> string -> string -> 'msg attribute
+val int_attr: ?ns:string -> string -> int -> 'msg attribute
+val float_attr: ?ns:string -> string -> float -> 'msg attribute
 
 (** {3 Common DOM properties} *)
 

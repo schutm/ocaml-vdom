@@ -209,8 +209,8 @@ let apply_attributes dom attributes =
             k
             (Ojs.string_to_js v)
 
-      | Attribute (k, v) ->
-          Element.set_attribute dom k v
+      | Attribute (ns, k, v) ->
+          Element.set_attribute_ns dom ns k v
 
       | _ -> ()
     )
@@ -266,35 +266,52 @@ let blit ctx vdom =
     raise exn
 
 let sync_props to_string same set clear l1 l2 =
-  let sort = List.sort (fun (k1, _) (k2, _) -> compare (k1:string) k2) in
+  let sort = List.sort (fun (ns1, k1, _) (ns2, k2, _) ->
+    match (ns1, ns2) with
+      | (None, None) -> compare k1 k2
+      | (None, Some _) -> -1
+      | (Some _, None) -> 1
+      | (Some ns1, Some ns2) when ns1 <> ns2 -> compare ns1 ns2 
+      | (Some ns1, Some ns2) -> compare k1 k2
+  ) in
   let l1 = sort l1 and l2 = sort l2 in
+  let ns_compare = Option.compare String.compare in
+  let ns_to_string = Option.fold ~none:"" ~some:(fun x -> x ^ ":") in
   let rec loop l1 l2 =
     match l1, l2 with
     | [], [] -> ()
 
-    | (k1, v1) :: tl1, (k2, _) :: _ when k1 < k2 ->
-        if debug then Printf.printf "Property %s unset %s =>\n%!" k1 (to_string v1);
-        clear k1;
+    | (ns1, k1, v1) :: tl1, (ns2, k2, _) :: _ when ns_compare ns1 ns2 < 0 ->
+      if debug then Printf.printf "Property %s%s unset %s =>\n%!" (ns_to_string ns1) k1 (to_string v1);
+      clear ns1 k1;
+      loop tl1 l2
+    | (ns1, k1, v1) :: tl1, (_ns2, k2, _) :: _ when k1 < k2 ->
+        if debug then Printf.printf "Property %s%s unset %s =>\n%!" (ns_to_string ns1) k1 (to_string v1);
+        clear ns1 k1;
         loop tl1 l2
-    | (k1, v1) :: tl1, [] ->
-        if debug then Printf.printf "Property %s unset %s =>\n%!" k1 (to_string v1);
-        clear k1;
+    | (ns1, k1, v1) :: tl1, [] ->
+        if debug then Printf.printf "Property %s%s unset %s =>\n%!" (ns_to_string ns1) k1 (to_string v1);
+        clear ns1 k1;
         loop tl1 []
 
-    | (k1, _) :: _, (k2, v2) :: tl2 when k2 < k1 ->
-        if debug then Printf.printf "Property %s set => %s\n%!" k2 (to_string v2);
-        set k2 v2;
-        loop l1 tl2
-    | [], (k2, v2) :: tl2 ->
-        if debug then Printf.printf "Property %s set => %s\n%!" k2 (to_string v2);
-        set k2 v2;
+    | (ns1, k1, _) :: _, (ns2, k2, v2) :: tl2 when ns_compare ns2 ns1 < 0 ->
+      if debug then Printf.printf "Property %s%s set => %s\n%!" (ns_to_string ns2) k2 (to_string v2);
+      set ns2 k2 v2;
+      loop l1 tl2
+    | (_ns1, k1, _) :: _, (ns2, k2, v2) :: tl2 when k2 < k1 ->
+      if debug then Printf.printf "Property %s%s set => %s\n%!" (ns_to_string ns2) k2 (to_string v2);
+      set ns2 k2 v2;
+      loop l1 tl2
+    | [], (ns2, k2, v2) :: tl2 ->
+        if debug then Printf.printf "Property %s%s set => %s\n%!" (ns_to_string ns2) k2 (to_string v2);
+        set ns2 k2 v2;
         loop [] tl2
 
-    | (_k1, v1) :: tl1, (k2, v2) :: tl2 ->
-        (* k1 = k2 *)
+    | (_ns1, _k1, v1) :: tl1, (ns2, k2, v2) :: tl2 ->
+        (* ns1 = ns2 && k1 = k2 *)
         if not (same v1 v2) then begin
-          if debug then Printf.printf "Property %s changed %s => %s\n%!" k2 (to_string v1) (to_string v2);
-          set k2 v2;
+          if debug then Printf.printf "Property %s%s changed %s => %s\n%!" (ns_to_string ns2) k2 (to_string v1) (to_string v2);
+          set ns2 k2 v2;
         end;
         loop tl1 tl2
   in
@@ -312,15 +329,15 @@ let js_empty_string =
   Ojs.string_to_js ""
 
 let sync_attributes dom a1 a2 =
-  let props = function Property (k, v) -> Some (k, v) | Style _ | Handler _ | Attribute _ -> None in
-  let set k v =
+  let props = function Property (k, v) -> Some (None, k, v) | Style _ | Handler _ | Attribute _ -> None in
+  let set _ns k v =
     match k, v with
     | "value", String s when s = Element.value dom -> ()
     | _ ->
         if not (custom_attribute dom k) then
           Ojs.set (Element.t_to_js dom) k (eval_prop v)
   in
-  let clear k = Ojs.set (Element.t_to_js dom) k Ojs.null in
+  let clear _ns k = Ojs.set (Element.t_to_js dom) k Ojs.null in
   sync_props
     string_of_prop
     same_prop
@@ -328,9 +345,9 @@ let sync_attributes dom a1 a2 =
     (choose props a1)
     (choose props a2);
 
-  let styles = function Style (k, v) -> Some (k, String v) | Property _ | Handler _ | Attribute _ -> None in
-  let set k v = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k (eval_prop v) in
-  let clear k = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k js_empty_string in
+  let styles = function Style (k, v) -> Some (None, k, String v) | Property _ | Handler _ | Attribute _ -> None in
+  let set _ns k v = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k (eval_prop v) in
+  let clear _ns k = Ojs.set (Ojs.get (Element.t_to_js dom) "style") k js_empty_string in
   sync_props
     string_of_prop
     same_prop
@@ -338,9 +355,9 @@ let sync_attributes dom a1 a2 =
     (choose styles a1)
     (choose styles a2);
 
-  let attrs = function Attribute (k, v) -> Some (k, v) | Style _ | Property _ | Handler _ -> None in
-  let set k v = Element.set_attribute dom k v in
-  let clear k = Element.remove_attribute dom k in
+  let attrs = function Attribute (ns, k, v) -> Some (ns, k, v) | Style _ | Property _ | Handler _ -> None in
+  let set ns k v = Element.set_attribute_ns dom ns k v in
+  let clear ns k = Element.remove_attribute_ns dom ns k in
   sync_props
     Fun.id
     (fun (s1: string) s2 -> s1 = s2)
